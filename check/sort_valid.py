@@ -5,8 +5,8 @@ import logging
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
-from search import AdataAPI
-from data import Entity, SQLiteSaver
+from check.adata_search_api import AdataAPI
+from parser import Entity, SQLiteSaver
 
 class BinMarker():
     '''Оптимизированный класс для поиска актуальных БИНов через API'''
