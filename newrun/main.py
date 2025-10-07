@@ -1,14 +1,13 @@
-import aiohttp
 import asyncio
-import sqlite3
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Union
 import json
-from datetime import datetime
-import contextlib
+import sqlite3
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 
 @dataclass
@@ -89,11 +88,11 @@ def safe_extract_str(data: Any, default: str = "") -> str:
 
     if isinstance(data, dict):
         # Пытаемся извлечь значение из словаря
-        value = data.get('value', data)
+        value = data.get("value", data)
         if isinstance(value, str):
             return value
         elif isinstance(value, dict):
-            return value.get('value', default) or default
+            return value.get("value", default) or default
         else:
             return str(value) if value is not None else default
 
@@ -108,8 +107,8 @@ def safe_extract_list(data: Any) -> List[str]:
     if isinstance(data, list):
         return [str(item) for item in data if item is not None]
 
-    if isinstance(data, dict) and 'value' in data:
-        value = data['value']
+    if isinstance(data, dict) and "value" in data:
+        value = data["value"]
         if isinstance(value, list):
             return [str(item) for item in value if item is not None]
         return [str(value)] if value is not None else []
@@ -124,7 +123,9 @@ def safe_get(dictionary: Optional[Dict], key: str, default: Any = None) -> Any:
     return dictionary.get(key, default)
 
 
-def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str, Any]]) -> Entity:
+def entity_from_json(
+    company_data: Dict[str, Any], full_info: Optional[Dict[str, Any]]
+) -> Entity:
     """Создает объект Entity из JSON данных с безопасным извлечением значений"""
     entity = Entity()
 
@@ -160,7 +161,9 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
     entity.kato_code = safe_extract_str(safe_get(kato_value, "value"))
     entity.kato_description = safe_extract_str(safe_get(kato_value, "description"))
 
-    entity.registration_date = safe_extract_str(safe_get(basic_info, "registrationDate"))
+    entity.registration_date = safe_extract_str(
+        safe_get(basic_info, "registrationDate")
+    )
 
     # Статус компании
     status_info = safe_get(basic_info, "status", {})
@@ -192,11 +195,15 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
     entity.kse_description = safe_extract_str(safe_get(kse_value, "description"))
 
     # Контактная информация
-    gos_zakup_contacts = safe_get(full_info, "gosZakupContacts", {}) if full_info else {}
+    gos_zakup_contacts = (
+        safe_get(full_info, "gosZakupContacts", {}) if full_info else {}
+    )
     egov_contacts = safe_get(full_info, "egovContacts", {}) if full_info else {}
 
     # Email
-    email_list = safe_get(gos_zakup_contacts, "email", []) or safe_get(egov_contacts, "email", [])
+    email_list = safe_get(gos_zakup_contacts, "email", []) or safe_get(
+        egov_contacts, "email", []
+    )
     if email_list and isinstance(email_list, list) and len(email_list) > 0:
         first_email = email_list[0]
         if isinstance(first_email, dict):
@@ -205,7 +212,9 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
             entity.email = safe_extract_str(first_email)
 
     # Телефон
-    phone_list = safe_get(gos_zakup_contacts, "phone", []) or safe_get(egov_contacts, "phone", [])
+    phone_list = safe_get(gos_zakup_contacts, "phone", []) or safe_get(
+        egov_contacts, "phone", []
+    )
     if phone_list and isinstance(phone_list, list) and len(phone_list) > 0:
         first_phone = phone_list[0]
         if isinstance(first_phone, dict):
@@ -288,7 +297,9 @@ class SQLiteSaver:
         """Устанавливает соединение с базой данных"""
         try:
             self.conn = sqlite3.connect(self.db_name)
-            self.conn.execute("PRAGMA journal_mode=WAL")  # Для лучшей производительности
+            self.conn.execute(
+                "PRAGMA journal_mode=WAL"
+            )  # Для лучшей производительности
             self.cursor = self.conn.cursor()
             self._create_table()
         except sqlite3.Error as e:
@@ -477,7 +488,9 @@ async def get_company_full_info(
     }
 
     try:
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
+        async with session.get(
+            url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)
+        ) as response:
             response.raise_for_status()
             return await response.json()
     except aiohttp.ClientError as e:
@@ -547,7 +560,9 @@ async def main_async_parser() -> None:
                 }
 
                 try:
-                    async with session.post(url, headers=headers, json=data, timeout=30) as response:
+                    async with session.post(
+                        url, headers=headers, json=data, timeout=30
+                    ) as response:
                         response.raise_for_status()
                         result = await response.json()
                         companies_data = result.get("results", [])
@@ -563,7 +578,7 @@ async def main_async_parser() -> None:
                     # Ограничиваем количество одновременных задач
                     batch_size = 5
                     for i in range(0, len(tasks), batch_size):
-                        batch = tasks[i:i + batch_size]
+                        batch = tasks[i : i + batch_size]
                         await asyncio.gather(*batch, return_exceptions=True)
                         await asyncio.sleep(1)  # Задержка между батчами
 
@@ -573,10 +588,10 @@ async def main_async_parser() -> None:
                     print(f"Ошибка на странице {page}: {e}")
                     continue
 
-    #print("Парсинг завершен! Данные сохранены в базу companies.db")
+    # print("Парсинг завершен! Данные сохранены в базу companies.db")
     # Теперь можно экспортировать из БД в Excel
 
-    #export_db_to_excel("companies.db", "companies_final2.xlsx")
+    # export_db_to_excel("companies.db", "companies_final2.xlsx")
 
 
 def export_db_to_excel(db_name: str, excel_filename: str) -> None:
@@ -584,7 +599,8 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
     try:
         with sqlite3.connect(db_name) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             SELECT * FROM companies
             WHERE phone IS NOT NULL
             AND phone != ''
@@ -592,7 +608,8 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
             AND ceo_name IS NOT NULL
             AND ceo_name != ''
             AND ceo_name != ' ';
-            """)
+            """
+            )
             rows = cursor.fetchall()
             column_names = [description[0] for description in cursor.description]
 

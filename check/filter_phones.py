@@ -1,7 +1,8 @@
 import re
+
 import openpyxl
 from openpyxl import Workbook
-from openpyxl.utils import get_column_letter
+
 
 def validate_phone(phone_value):
     """
@@ -15,23 +16,24 @@ def validate_phone(phone_value):
     phone_str = str(phone_value).strip()
 
     # Удаляем все нецифровые символы (кроме + в начале)
-    if phone_str.startswith('+'):
-        cleaned = '+' + re.sub(r'\D', '', phone_str[1:])
+    if phone_str.startswith("+"):
+        cleaned = "+" + re.sub(r"\D", "", phone_str[1:])
     else:
-        cleaned = re.sub(r'\D', '', phone_str)
+        cleaned = re.sub(r"\D", "", phone_str)
 
     # Проверяем различные форматы номеров
     patterns = [
-        r'^\+7\d{10}$',          # +71234567890 (Россия)
-        r'^8\d{10}$',            # 81234567890 (Россия)
-        r'^\+?\d{11,15}$',       # Международные номера
-        r'^\+1\d{10}$',          # +11234567890 (США/Канада)
-        r'^\+44\d{9,10}$',       # +441234567890 (Великобритания)
+        r"^\+7\d{10}$",  # +71234567890 (Россия)
+        r"^8\d{10}$",  # 81234567890 (Россия)
+        r"^\+?\d{11,15}$",  # Международные номера
+        r"^\+1\d{10}$",  # +11234567890 (США/Канада)
+        r"^\+44\d{9,10}$",  # +441234567890 (Великобритания)
     ]
 
     return any(re.match(pattern, cleaned) for pattern in patterns)
 
-def filter_excel_by_phone(input_file, output_file, phone_column='Phone'):
+
+def filter_excel_by_phone(input_file, output_file, phone_column="Phone"):
     """
     Фильтрует Excel файл, оставляя только строки с валидными номерами телефонов
 
@@ -63,7 +65,9 @@ def filter_excel_by_phone(input_file, output_file, phone_column='Phone'):
 
         # Копируем заголовки
         for col in range(1, sheet.max_column + 1):
-            new_sheet.cell(row=1, column=col).value = sheet.cell(row=1, column=col).value
+            new_sheet.cell(row=1, column=col).value = sheet.cell(
+                row=1, column=col
+            ).value
 
         # Фильтруем строки
         valid_rows_count = 1  # начинаем с 1, т.к. заголовок уже есть
@@ -82,10 +86,13 @@ def filter_excel_by_phone(input_file, output_file, phone_column='Phone'):
 
         # Сохраняем результат
         new_workbook.save(output_file)
-        print(f"Файл успешно отфильтрован! Сохранено {valid_rows_count - 1} валидных записей.")
+        print(
+            f"Файл успешно отфильтрован! Сохранено {valid_rows_count - 1} валидных записей."
+        )
 
     except Exception as e:
         print(f"Произошла ошибка: {e}")
+
 
 # Альтернативная версия с более строгой валидацией
 def validate_phone_strict(phone_value):
@@ -102,11 +109,11 @@ def validate_phone_strict(phone_value):
         return False
 
     # Удаляем все нецифровые символы (кроме + в начале)
-    if phone_str.startswith('+'):
-        digits = re.sub(r'\D', '', phone_str[1:])
-        full_number = '+' + digits
+    if phone_str.startswith("+"):
+        digits = re.sub(r"\D", "", phone_str[1:])
+        full_number = "+" + digits
     else:
-        digits = re.sub(r'\D', '', phone_str)
+        digits = re.sub(r"\D", "", phone_str)
         full_number = digits
 
     # Проверяем длину номера
@@ -114,6 +121,7 @@ def validate_phone_strict(phone_value):
         return False
 
     return True
+
 
 # Пример использования
 if __name__ == "__main__":

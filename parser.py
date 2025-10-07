@@ -1,14 +1,17 @@
-import aiohttp
 import asyncio
-import sqlite3
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Union
 import json
-from datetime import datetime
-import contextlib
+import logging
+import sqlite3
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+from aiohttp import ClientResponseError
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,7 +96,7 @@ class Entity:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Entity':
+    def from_dict(cls, data: Dict[str, Any]) -> "Entity":
         """
         Создает объект Entity из словаря
 
@@ -107,22 +110,36 @@ class Entity:
         processed_data = data.copy()
 
         # Если secondary_oked представлен как строка JSON, преобразуем обратно в список
-        if 'secondary_oked' in processed_data and isinstance(processed_data['secondary_oked'], str):
+        if "secondary_oked" in processed_data and isinstance(
+            processed_data["secondary_oked"], str
+        ):
             try:
-                processed_data['secondary_oked'] = json.loads(processed_data['secondary_oked'])
+                processed_data["secondary_oked"] = json.loads(
+                    processed_data["secondary_oked"]
+                )
             except json.JSONDecodeError:
-                processed_data['secondary_oked'] = []
+                processed_data["secondary_oked"] = []
 
         # Преобразуем булевы поля из int обратно в bool
-        bool_fields = ['is_nds', 'in_inactive_registry', 'in_absent_registry',
-                      'in_fake_registry', 'in_bankrupt_registry', 'in_invalid_registry',
-                      'in_tax_debtor_registry', 'unreliable_samruk', 'unreliable_gz', 'was_nds']
+        bool_fields = [
+            "is_nds",
+            "in_inactive_registry",
+            "in_absent_registry",
+            "in_fake_registry",
+            "in_bankrupt_registry",
+            "in_invalid_registry",
+            "in_tax_debtor_registry",
+            "unreliable_samruk",
+            "unreliable_gz",
+            "was_nds",
+        ]
 
         for field_name in bool_fields:
             if field_name in processed_data:
                 processed_data[field_name] = bool(processed_data[field_name])
 
         return cls(**processed_data)
+
 
 def safe_extract_str(data: Any, default: str = "") -> str:
     """Безопасно извлекает строковое значение из сложной структуры"""
@@ -134,11 +151,11 @@ def safe_extract_str(data: Any, default: str = "") -> str:
 
     if isinstance(data, dict):
         # Пытаемся извлечь значение из словаря
-        value = data.get('value', data)
+        value = data.get("value", data)
         if isinstance(value, str):
             return value
         elif isinstance(value, dict):
-            return value.get('value', default) or default
+            return value.get("value", default) or default
         else:
             return str(value) if value is not None else default
 
@@ -153,8 +170,8 @@ def safe_extract_list(data: Any) -> List[str]:
     if isinstance(data, list):
         return [str(item) for item in data if item is not None]
 
-    if isinstance(data, dict) and 'value' in data:
-        value = data['value']
+    if isinstance(data, dict) and "value" in data:
+        value = data["value"]
         if isinstance(value, list):
             return [str(item) for item in value if item is not None]
         return [str(value)] if value is not None else []
@@ -169,7 +186,9 @@ def safe_get(dictionary: Optional[Dict], key: str, default: Any = None) -> Any:
     return dictionary.get(key, default)
 
 
-def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str, Any]]) -> Entity:
+def entity_from_json(
+    company_data: Dict[str, Any], full_info: Optional[Dict[str, Any]]
+) -> Entity:
     """Создает объект Entity из JSON данных с безопасным извлечением значений"""
     entity = Entity()
 
@@ -205,7 +224,9 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
     entity.kato_code = safe_extract_str(safe_get(kato_value, "value"))
     entity.kato_description = safe_extract_str(safe_get(kato_value, "description"))
 
-    entity.registration_date = safe_extract_str(safe_get(basic_info, "registrationDate"))
+    entity.registration_date = safe_extract_str(
+        safe_get(basic_info, "registrationDate")
+    )
 
     # Статус компании
     status_info = safe_get(basic_info, "status", {})
@@ -237,11 +258,15 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
     entity.kse_description = safe_extract_str(safe_get(kse_value, "description"))
 
     # Контактная информация
-    gos_zakup_contacts = safe_get(full_info, "gosZakupContacts", {}) if full_info else {}
+    gos_zakup_contacts = (
+        safe_get(full_info, "gosZakupContacts", {}) if full_info else {}
+    )
     egov_contacts = safe_get(full_info, "egovContacts", {}) if full_info else {}
 
     # Email
-    email_list = safe_get(gos_zakup_contacts, "email", []) or safe_get(egov_contacts, "email", [])
+    email_list = safe_get(gos_zakup_contacts, "email", []) or safe_get(
+        egov_contacts, "email", []
+    )
     if email_list and isinstance(email_list, list) and len(email_list) > 0:
         first_email = email_list[0]
         if isinstance(first_email, dict):
@@ -250,7 +275,9 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
             entity.email = safe_extract_str(first_email)
 
     # Телефон
-    phone_list = safe_get(gos_zakup_contacts, "phone", []) or safe_get(egov_contacts, "phone", [])
+    phone_list = safe_get(gos_zakup_contacts, "phone", []) or safe_get(
+        egov_contacts, "phone", []
+    )
     if phone_list and isinstance(phone_list, list) and len(phone_list) > 0:
         first_phone = phone_list[0]
         if isinstance(first_phone, dict):
@@ -321,21 +348,25 @@ def entity_from_json(company_data: Dict[str, Any], full_info: Optional[Dict[str,
 
 
 class SQLiteSaver:
-    def __init__(self, db_name: str = "companies.db"):
+    def __init__(self, db_name: str = "data/companies.db"):
         self.db_name = db_name
         self.conn = None
         self.connect()
         # Увеличиваем размер кэша и настраиваем для производительности
         self.conn.execute("PRAGMA cache_size = -10000")  # 10MB кэш
-        self.conn.execute("PRAGMA synchronous = OFF")    # Быстрая запись (риск потери данных при сбое)
-        self.conn.execute("PRAGMA journal_mode = MEMORY") # Журнал в памяти
+        self.conn.execute(
+            "PRAGMA synchronous = OFF"
+        )  # Быстрая запись (риск потери данных при сбое)
+        self.conn.execute("PRAGMA journal_mode = MEMORY")  # Журнал в памяти
         self.conn.execute("PRAGMA temp_store = MEMORY")  # Временные таблицы в памяти
 
     def connect(self) -> None:
         """Устанавливает соединение с базой данных"""
         try:
             self.conn = sqlite3.connect(self.db_name)
-            self.conn.execute("PRAGMA journal_mode=WAL")  # Для лучшей производительности
+            self.conn.execute(
+                "PRAGMA journal_mode=WAL"
+            )  # Для лучшей производительности
             self.cursor = self.conn.cursor()
             self._create_table()
         except sqlite3.Error as e:
@@ -409,7 +440,8 @@ class SQLiteSaver:
     def all(self) -> List[Entity]:
         with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             SELECT * FROM companies
             WHERE phone IS NOT NULL
             AND phone != ''
@@ -417,7 +449,8 @@ class SQLiteSaver:
             AND ceo_name IS NOT NULL
             AND ceo_name != ''
             AND ceo_name != ' ';
-            """)
+            """
+            )
             rows = cursor.fetchall()
 
             # Get column names to convert rows to dictionaries
@@ -435,6 +468,10 @@ class SQLiteSaver:
         """Сохраняет или обновляет объект Entity в базе данных"""
         if not self.conn:
             self.connect()
+
+        self.cursor.execute("SELECT 1 FROM companies WHERE bin = ?", (entity.bin,))
+        existed_before = self.cursor.fetchone() is not None
+        operation_type = "updated" if existed_before else "inserted"
 
         query = """
         INSERT OR REPLACE INTO companies (
@@ -511,15 +548,16 @@ class SQLiteSaver:
 
             self.cursor.execute(query, data)
             self.conn.commit()
-            return True
+
+            return True, operation_type
 
         except sqlite3.Error as e:
             print(f"Ошибка сохранения данных для BIN {entity.bin}: {e}")
             self.conn.rollback()
-            return False
+            return False, operation_type
         except Exception as e:
             print(f"Неожиданная ошибка при сохранении BIN {entity.bin}: {e}")
-            return False
+            return False, operation_type
 
     def close(self) -> None:
         """Безопасно закрывает соединение с БД"""
@@ -549,8 +587,11 @@ async def get_company_full_info(
     }
 
     try:
-        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
+        async with session.get(
+            url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)
+        ) as response:
             response.raise_for_status()
+            # analyze_rate_limits(response.headers)
             return await response.json()
     except aiohttp.ClientError as e:
         print(f"Ошибка сети при получении информации для BIN {bin_number}: {e}")
@@ -580,19 +621,53 @@ async def process_single_company(
             return
 
         entity = entity_from_json(company_data, full_info)
-        success = db_saver.save_entity(entity)
+        success, operation_type = db_saver.save_entity(entity)
         if success:
-            print(f"Сохранен BIN: {bin_number}")
+            if operation_type == "inserted":
+                print(f"Вставлен новый BIN: {bin_number}")
+            else:
+                print(f"Обновлен существующий BIN: {bin_number}")
         else:
-            print(f"Ошибка сохранения BIN: {bin_number}")
+            if operation_type == "inserted":
+                print(f"Ошибка вставки нового BIN: {bin_number}")
+            else:
+                print(f"Ошибка обновления существующего BIN: {bin_number}")
 
     except Exception as e:
         print(f"Критическая ошибка при обработке BIN {bin_number}: {e}")
 
 
+def analyze_rate_limits(headers: dict) -> None:
+    """Анализирует заголовки лимитов запросов"""
+    rate_limit_headers = {
+        "RateLimit-Limit": "Общий лимит запросов",
+        "RateLimit-Remaining": "Оставшееся количество запросов",
+        "RateLimit-Reset": "Время сброса лимита",
+        "X-RateLimit-Limit": "X-Общий лимит запросов",
+        "X-RateLimit-Remaining": "X-Оставшееся количество запросов",
+        "X-RateLimit-Reset": "X-Время сброса лимита",
+        "Retry-After": "Время ожидания после 429",
+    }
+
+    print("=== АНАЛИЗ ЗАГОЛОВКОВ ЛИМИТОВ ===")
+    found_headers = False
+
+    for header, description in rate_limit_headers.items():
+        if header in headers:
+            found_headers = True
+            print(f"{description} ({header}): {headers[header]}")
+
+    if not found_headers:
+        print("Стандартные заголовки лимитов не найдены")
+        print("Все заголовки ответа:")
+        for header, value in headers.items():
+            print(f"  {header}: {value}")
+
+    print("=" * 40)
+
+
 async def main_async_parser() -> None:
-    """Основная асинхронная функция парсинга"""
-    # Используем контекстный менеджер для безопасного управления ресурсами БД
+    """Основная асинхронная функция парсинга с обработкой 429 ошибок"""
     with SQLiteSaver() as db_saver:
         url = "https://apiba.prgapp.kz/GetCompanyListAsync"
         headers = {
@@ -602,10 +677,15 @@ async def main_async_parser() -> None:
             "Accept": "application/json, text/plain, */*",
         }
 
-        # Создаем aiohttp сессию с ограничением соединений
-        connector = aiohttp.TCPConnector(limit=50, limit_per_host=50)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            for page in range(1, 500000):  # Все так же 2 страницы для примера
+        # Уменьшаем лимит соединений и добавляем задержки
+        connector = aiohttp.TCPConnector(limit=20, limit_per_host=10)
+        timeout = aiohttp.ClientTimeout(total=60, connect=30)
+
+        async with aiohttp.ClientSession(
+            connector=connector, timeout=timeout, headers=headers
+        ) as session:
+
+            for page in range(202, 500000):
                 print(f"Загружаем страницу {page}...")
 
                 data = {
@@ -618,37 +698,95 @@ async def main_async_parser() -> None:
                     "kato": [],
                 }
 
-                try:
-                    async with session.post(url, headers=headers, json=data, timeout=30) as response:
-                        response.raise_for_status()
-                        result = await response.json()
-                        companies_data = result.get("results", [])
+                max_retries = 3
+                retry_delay = 5
 
-                    # Создаем список задач для асинхронного выполнения с ограничением
-                    tasks = []
-                    for company in companies_data:
-                        task = asyncio.create_task(
-                            process_single_company(session, db_saver, company)
+                for attempt in range(max_retries):
+                    try:
+                        async with session.post(url, json=data) as response:
+                            if response.status == 429:
+                                # Получаем время ожидания из заголовка или используем экспоненциальную задержку
+                                retry_after = response.headers.get("Retry-After")
+                                if retry_after:
+                                    wait_time = int(retry_after)
+                                else:
+                                    wait_time = retry_delay * (
+                                        2**attempt
+                                    )  # Экспоненциальная backoff
+
+                                print(
+                                    f"Получена 429 ошибка. Ждем {wait_time} секунд..."
+                                )
+                                await asyncio.sleep(wait_time)
+                                continue
+
+                            response.raise_for_status()
+                            result = await response.json()
+                            companies_data = result.get("results", [])
+
+                            # Если нет данных, возможно, достигли конца
+                            if not companies_data:
+                                print("Достигнут конец данных")
+                                return
+
+                        await process_batch_sequential(
+                            companies_data,
+                            session,
+                            db_saver,
+                            delay_between_requests=1.0,
                         )
-                        tasks.append(task)
+                        print(f"Страница {page} обработана.")
+                        break  # Успешно обработали страницу, выходим из retry цикла
 
-                    # Ограничиваем количество одновременных задач
-                    batch_size = 50
-                    for i in range(0, len(tasks), batch_size):
-                        batch = tasks[i:i + batch_size]
-                        await asyncio.gather(*batch, return_exceptions=True)
-                        await asyncio.sleep(1)  # Задержка между батчами
+                    except ClientResponseError as e:
+                        if e.status == 429:
+                            print(f"Попытка {attempt + 1}: 429 ошибка")
+                            if attempt < max_retries - 1:
+                                wait_time = retry_delay * (2**attempt)
+                                print(
+                                    f"Ждем {wait_time} секунд перед повторной попыткой..."
+                                )
+                                await asyncio.sleep(wait_time)
+                            else:
+                                print(
+                                    "Достигнут лимит повторных попыток для этой страницы"
+                                )
+                                break
+                        else:
+                            print(f"HTTP ошибка {e.status} на странице {page}: {e}")
+                            break
 
-                    print(f"Страница {page} обработана.")
+                    except asyncio.TimeoutError:
+                        print(f"Таймаут на странице {page}, попытка {attempt + 1}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            print("Достигнут лимит повторных попыток из-за таймаутов")
+                            break
 
-                except Exception as e:
-                    print(f"Ошибка на странице {page}: {e}")
-                    continue
+                    except Exception as e:
+                        print(f"Неожиданная ошибка на странице {page}: {e}")
+                        break
 
-    #print("Парсинг завершен! Данные сохранены в базу companies.db")
-    # Теперь можно экспортировать из БД в Excel
 
-    #export_db_to_excel("companies.db", "companies_final2.xlsx")
+async def process_batch_sequential(
+    companies_data: List[dict],
+    session: aiohttp.ClientSession,
+    db_saver: SQLiteSaver,
+    delay_between_requests: float = 1.0,
+) -> None:
+
+    for i, company in enumerate(companies_data):
+        try:
+            await process_single_company(session, db_saver, company)
+            logger.info(f"Processed company {i+1}/{len(companies_data)}")
+
+        except Exception as e:
+            logger.error(f"Failed to process company {i+1}: {e}")
+
+        # Задержка между запросами (кроме последнего)
+        if i < len(companies_data) - 1:
+            await asyncio.sleep(delay_between_requests)
 
 
 def export_db_to_excel(db_name: str, excel_filename: str) -> None:
@@ -656,7 +794,8 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
     try:
         with sqlite3.connect(db_name) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             SELECT * FROM companies
             WHERE phone IS NOT NULL
             AND phone != ''
@@ -664,7 +803,8 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
             AND ceo_name IS NOT NULL
             AND ceo_name != ''
             AND ceo_name != ' ';
-            """)
+            """
+            )
             rows = cursor.fetchall()
             column_names = [description[0] for description in cursor.description]
 
@@ -703,7 +843,7 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
 if __name__ == "__main__":
     try:
         asyncio.run(main_async_parser())
-        export_db_to_excel("companies.db", "companies_00.xlsx")
+        # export_db_to_excel("data/companies.db", "companies_00.xlsx")
     except KeyboardInterrupt:
         print("\nПарсинг прерван пользователем")
     except Exception as e:

@@ -1,16 +1,17 @@
-import requests
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import requests
+
 
 class AdataAPI:
-    '''An API agent for interacting with the adata.kz'''
+    """An API agent for interacting with the adata.kz"""
 
     def __init__(
-            self,
-            logger: Optional[logging.Logger] = None,
-            DO_LOGGING: bool = True,
-        ):
+        self,
+        logger: Optional[logging.Logger] = None,
+        DO_LOGGING: bool = True,
+    ):
         self.logger = logger if logger else logging.getLogger(__name__)
         self.DO_LOGGING = DO_LOGGING
         self.base_url = "https://pk-api.adata.kz/api/v1"
@@ -37,12 +38,7 @@ class AdataAPI:
             if self.DO_LOGGING and self.logger:
                 self.logger.debug(f"Request to: {url}, with params: {params}")
 
-            response = requests.get(
-                headers=headers,
-                params=params,
-                url=url,
-                timeout=10
-            )
+            response = requests.get(headers=headers, params=params, url=url, timeout=10)
             response.raise_for_status()
             return response.json()
 
@@ -64,10 +60,10 @@ class AdataAPI:
         # First search by BIIN
         result = self.search(biin)
 
-        if result.get('status') and result['data']['count_all'] > 0:
+        if result.get("status") and result["data"]["count_all"] > 0:
             # Try to find exact BIIN match
-            for company in result['data']['result']:
-                if company.get('biin') == biin:
+            for company in result["data"]["result"]:
+                if company.get("biin") == biin:
                     return company
         return None
 
@@ -82,22 +78,24 @@ class AdataAPI:
             Formatted company information
         """
         return {
-            'id': company_data.get('id'),
-            'biin': company_data.get('biin'),
-            'name': company_data.get('name'),
-            'address': company_data.get('address'),
-            'trustworthy': company_data.get('trustworthy', False),
-            'type_id': company_data.get('type_id'),
-            'is_inactive': company_data.get('is_inactive', False),
-            'registration_date': company_data.get('registration_date'),
-            'director_name': company_data.get('director_name'),
-            'status': company_data.get('status'),
-            'status_code': company_data.get('status_code'),
-            'highlight': company_data.get('highlight', []),
-            'score': company_data.get('_score')
+            "id": company_data.get("id"),
+            "biin": company_data.get("biin"),
+            "name": company_data.get("name"),
+            "address": company_data.get("address"),
+            "trustworthy": company_data.get("trustworthy", False),
+            "type_id": company_data.get("type_id"),
+            "is_inactive": company_data.get("is_inactive", False),
+            "registration_date": company_data.get("registration_date"),
+            "director_name": company_data.get("director_name"),
+            "status": company_data.get("status"),
+            "status_code": company_data.get("status_code"),
+            "highlight": company_data.get("highlight", []),
+            "score": company_data.get("_score"),
         }
 
-    def search_companies(self, keyword: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    def search_companies(
+        self, keyword: str, max_results: int = 10
+    ) -> List[Dict[str, Any]]:
         """
         Search for companies and return formatted results
 
@@ -110,13 +108,13 @@ class AdataAPI:
         """
         result = self.search(keyword)
 
-        if not result.get('status'):
+        if not result.get("status"):
             if self.DO_LOGGING and self.logger:
                 self.logger.warning(f"Search failed for keyword: {keyword}")
             return []
 
         companies = []
-        for company in result['data']['result'][:max_results]:
+        for company in result["data"]["result"][:max_results]:
             companies.append(self.extract_company_info(company))
 
         return companies
@@ -133,17 +131,18 @@ class AdataAPI:
         """
         result = self.search(director_name)
 
-        if not result.get('status'):
+        if not result.get("status"):
             return []
 
         director_companies = []
-        for company in result['data']['result']:
+        for company in result["data"]["result"]:
             # Check if director name matches or is in highlights
-            company_director = company.get('director_name', '').lower()
+            company_director = company.get("director_name", "").lower()
             search_director = director_name.lower()
 
-            if (search_director in company_director or
-                any(search_director in str(h).lower() for h in company.get('highlight', []))):
+            if search_director in company_director or any(
+                search_director in str(h).lower() for h in company.get("highlight", [])
+            ):
                 director_companies.append(self.extract_company_info(company))
 
         return director_companies
@@ -160,12 +159,15 @@ class AdataAPI:
         """
         result = self.search(biin_or_name)
 
-        if result.get('status') and result['data']['count_all'] > 0:
-            for company in result['data']['result']:
-                if (company.get('biin') == biin_or_name or
-                    company.get('name', '').lower() == biin_or_name.lower()):
-                    return not company.get('is_inactive', False)
+        if result.get("status") and result["data"]["count_all"] > 0:
+            for company in result["data"]["result"]:
+                if (
+                    company.get("biin") == biin_or_name
+                    or company.get("name", "").lower() == biin_or_name.lower()
+                ):
+                    return not company.get("is_inactive", False)
         return False
+
 
 # Usage examples
 if __name__ == "__main__":

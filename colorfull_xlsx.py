@@ -1,6 +1,7 @@
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+
 
 def style_excel_file(input_file, output_file):
     """
@@ -16,29 +17,37 @@ def style_excel_file(input_file, output_file):
         HEADER_BG_COLOR = "1F4E78"  # Темно-синий
         HEADER_TEXT_COLOR = "FFFFFF"  # Белый
         ACTIVE_STATUS_COLOR = "E2EFDA"  # Светло-зеленый для Active
-        ALT_ROW_COLOR = "F2F2F2"    # Светло-серый для чередующихся строк
+        ALT_ROW_COLOR = "F2F2F2"  # Светло-серый для чередующихся строк
 
         # Шрифты
-        header_font = Font(name='Arial', size=12, bold=True, color=HEADER_TEXT_COLOR)
-        data_font = Font(name='Arial', size=10)
-        phone_font = Font(name='Consolas', size=10)  # Моноширинный для телефонов
-        email_font = Font(name='Arial', size=10, color="0070C0", underline='single')
+        header_font = Font(name="Arial", size=12, bold=True, color=HEADER_TEXT_COLOR)
+        data_font = Font(name="Arial", size=10)
+        phone_font = Font(name="Consolas", size=10)  # Моноширинный для телефонов
+        email_font = Font(name="Arial", size=10, color="0070C0", underline="single")
 
         # Заливка
-        header_fill = PatternFill(start_color=HEADER_BG_COLOR, end_color=HEADER_BG_COLOR, fill_type="solid")
-        active_fill = PatternFill(start_color=ACTIVE_STATUS_COLOR, end_color=ACTIVE_STATUS_COLOR, fill_type="solid")
-        alt_row_fill = PatternFill(start_color=ALT_ROW_COLOR, end_color=ALT_ROW_COLOR, fill_type="solid")
+        header_fill = PatternFill(
+            start_color=HEADER_BG_COLOR, end_color=HEADER_BG_COLOR, fill_type="solid"
+        )
+        active_fill = PatternFill(
+            start_color=ACTIVE_STATUS_COLOR,
+            end_color=ACTIVE_STATUS_COLOR,
+            fill_type="solid",
+        )
+        alt_row_fill = PatternFill(
+            start_color=ALT_ROW_COLOR, end_color=ALT_ROW_COLOR, fill_type="solid"
+        )
 
         # Выравнивание
-        center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+        center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         # Границы
         thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
         )
 
         # Стилизуем заголовки
@@ -69,38 +78,38 @@ def style_excel_file(input_file, output_file):
                     cell.fill = alt_row_fill
 
         # Специальное форматирование для конкретных колонок
-        if 'Phone' in column_indices:
-            phone_col = column_indices['Phone']
+        if "Phone" in column_indices:
+            phone_col = column_indices["Phone"]
             for row in range(2, ws.max_row + 1):
                 cell = ws.cell(row=row, column=phone_col)
                 cell.font = phone_font
                 cell.alignment = center_align
 
-        if 'Email' in column_indices:
-            email_col = column_indices['Email']
+        if "Email" in column_indices:
+            email_col = column_indices["Email"]
             for row in range(2, ws.max_row + 1):
                 cell = ws.cell(row=row, column=email_col)
                 if cell.value:  # Только если есть email
                     cell.font = email_font
                     cell.hyperlink = f"mailto:{cell.value}"
 
-        if 'Status' in column_indices:
-            status_col = column_indices['Status']
+        if "Status" in column_indices:
+            status_col = column_indices["Status"]
             for row in range(2, ws.max_row + 1):
                 cell = ws.cell(row=row, column=status_col)
-                if cell.value and str(cell.value).upper() == 'ACTIVE':
+                if cell.value and str(cell.value).upper() == "ACTIVE":
                     cell.fill = active_fill
-                    cell.font = Font(name='Arial', size=10, bold=True, color="006100")
+                    cell.font = Font(name="Arial", size=10, bold=True, color="006100")
                     cell.alignment = center_align
 
         # Настраиваем ширину колонок
         column_widths = {
-            'BIN': 15,
-            'CEO': 35,
-            'Address': 50,
-            'Phone': 20,
-            'Email': 30,
-            'Status': 12
+            "BIN": 15,
+            "CEO": 35,
+            "Address": 50,
+            "Phone": 20,
+            "Email": 30,
+            "Status": 12,
         }
 
         for col_name, width in column_widths.items():
@@ -121,6 +130,7 @@ def style_excel_file(input_file, output_file):
     except Exception as e:
         print(f"Ошибка при оформлении файла: {e}")
 
+
 # Дополнительная функция для улучшения читаемости телефонов
 def format_phone_numbers(input_file):
     """
@@ -133,7 +143,7 @@ def format_phone_numbers(input_file):
         # Находим колонку Phone
         phone_col = None
         for col in range(1, ws.max_column + 1):
-            if ws.cell(row=1, column=col).value == 'Phone':
+            if ws.cell(row=1, column=col).value == "Phone":
                 phone_col = col
                 break
 
@@ -144,12 +154,12 @@ def format_phone_numbers(input_file):
                     # Очищаем номер от лишних символов
                     phone = str(cell.value).strip()
                     # Удаляем все нецифровые символы
-                    digits = ''.join(filter(str.isdigit, phone))
+                    digits = "".join(filter(str.isdigit, phone))
 
                     # Форматируем в международный формат
-                    if digits.startswith('7') and len(digits) == 11:
+                    if digits.startswith("7") and len(digits) == 11:
                         formatted = f"+7 ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:]}"
-                    elif digits.startswith('870') and len(digits) == 11:
+                    elif digits.startswith("870") and len(digits) == 11:
                         formatted = f"+7 ({digits[2:5]}) {digits[5:8]}-{digits[8:10]}-{digits[10:]}"
                     elif len(digits) >= 10:
                         formatted = f"+{digits}"
@@ -164,9 +174,10 @@ def format_phone_numbers(input_file):
     except Exception as e:
         print(f"Ошибка при форматировании телефонов: {e}")
 
+
 if __name__ == "__main__":
-    input_filename = "filtered_output.xlsx"
-    output_filename = "beautiful_output.xlsx"
+    input_filename = "data/filtered_output.xlsx"
+    output_filename = "data/beautiful_output.xlsx"
 
     # Сначала форматируем телефоны
     format_phone_numbers(input_filename)
