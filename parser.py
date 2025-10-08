@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -574,6 +574,7 @@ class SQLiteSaver:
         """Гарантированное закрытие соединения при выходе из контекста"""
         self.close()
 
+NOT_WORKED_LIST = []
 
 async def get_company_full_info(
     session: aiohttp.ClientSession, bin_number: str, lang: str = "ru"
@@ -588,13 +589,16 @@ async def get_company_full_info(
 
     try:
         async with session.get(
-            url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)
+            url, headers=headers, timeout=aiohttp.ClientTimeout(total=5)
         ) as response:
             response.raise_for_status()
             # analyze_rate_limits(response.headers)
             return await response.json()
     except aiohttp.ClientError as e:
-        print(f"Ошибка сети при получении информации для BIN {bin_number}: {e}")
+
+        print(f"Ошибка сети при получении информации для BIN {bin_number}: {str(e)}")
+        global NOT_WORKED_LIST
+        NOT_WORKED_LIST.append(bin_number)
     except asyncio.TimeoutError:
         print(f"Таймаут при получении информации для BIN {bin_number}")
     except Exception as e:
@@ -685,7 +689,7 @@ async def main_async_parser() -> None:
             connector=connector, timeout=timeout, headers=headers
         ) as session:
 
-            for page in range(202, 500000):
+            for page in range(825, 500000):
                 print(f"Загружаем страницу {page}...")
 
                 data = {
@@ -733,7 +737,7 @@ async def main_async_parser() -> None:
                             companies_data,
                             session,
                             db_saver,
-                            delay_between_requests=1.0,
+                            delay_between_requests=0.3,
                         )
                         print(f"Страница {page} обработана.")
                         break  # Успешно обработали страницу, выходим из retry цикла
@@ -843,6 +847,7 @@ def export_db_to_excel(db_name: str, excel_filename: str) -> None:
 if __name__ == "__main__":
     try:
         asyncio.run(main_async_parser())
+        print(NOT_WORKED_LIST)
         # export_db_to_excel("data/companies.db", "companies_00.xlsx")
     except KeyboardInterrupt:
         print("\nПарсинг прерван пользователем")
